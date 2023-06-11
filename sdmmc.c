@@ -353,7 +353,6 @@ int sdmmc_read(u32 blk_start, u32 blk_count, void *data)
 	return 0;
 }
 
-#ifndef LOADER
 int sdmmc_write(u32 blk_start, u32 blk_count, void *data)
 {
 	struct sdmmc_command cmd;
@@ -397,6 +396,7 @@ int sdmmc_write(u32 blk_start, u32 blk_count, void *data)
 	return 0;
 }
 
+#ifndef LOADER
 int sdmmc_get_sectors(void)
 {
 	if (card.inserted == 0) {

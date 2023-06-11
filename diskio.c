@@ -12,6 +12,7 @@ Copyright (C) 2008, 2009	Haxx Enterprises <bushing@gmail.com>
 #include "diskio.h"
 #include "string.h"
 #include "sdmmc.h"
+#include "start.h"
 
 #ifndef MEM2_BSS
 #define MEM2_BSS
@@ -54,6 +55,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) {
 #if _READONLY == 0
 DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) {
 	int i;
+	UNUSED(drv);
 
 	for (i = 0; i < count; i++) {
 		memcpy(buffer, buff + i * 512, 512);
@@ -68,6 +70,8 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) {
 
 #if _USE_IOCTL == 1
 DRESULT disk_ioctl (BYTE drv, BYTE ctrl, void *buff) {
+	UNUSED(drv);
+	UNUSED(buff);
 	if (ctrl == CTRL_SYNC)
 		return RES_OK;
 

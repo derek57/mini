@@ -844,12 +844,12 @@ void sdhc_irq(void)
 	sdhc_intr();
 }
 
-void sdhc_init(void)
+int sdhc_init(void)
 {
 #ifdef CAN_HAZ_IRQ
 	irq_enable(IRQ_SDHC);
 #endif
-	sdhc_host_found(0, SDHC_REG_BASE, 1);
+	return sdhc_host_found(0, SDHC_REG_BASE, 1);
 }
 
 void sdhc_exit(void)

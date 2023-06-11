@@ -13,15 +13,19 @@ Copyright (C) 2009		Andre Heider "dhewg" <dhewg@wiibrew.org>
 #ifdef CAN_HAZ_USBGECKO
 
 #include "types.h"
+#ifdef CAN_HAZ_IRQ
 #include "irq.h"
 #include "start.h"
+#endif
 #include "vsprintf.h"
 #include "string.h"
 #include "utils.h"
 #include "hollywood.h"
+#ifdef CAN_HAZ_IPC
 #include "elf.h"
 #include "powerpc.h"
 #include "powerpc_elf.h"
+#endif
 #include "gecko.h"
 
 static u8 gecko_found = 0;
@@ -90,6 +94,8 @@ static u32 _gecko_checksend(void)
 }
 #endif
 
+#ifndef LOADER
+#ifdef CAN_HAZ_IRQ
 static u32 _gecko_checkrecv(void)
 {
 	u32 i = 0;
@@ -98,6 +104,8 @@ static u32 _gecko_checkrecv(void)
 		return 1; // Return 1 if safe to recv
 	return 0;
 }
+#endif
+#endif
 
 static int gecko_isalive(void)
 {
@@ -149,7 +157,7 @@ static int gecko_sendbuffer(const void *buffer, u32 size)
 #ifdef GECKO_LFCR
 			_gecko_sendbyte('\r');
 #endif
-			break;
+//			break;
 		}
 		ptr++;
 		left--;
@@ -174,7 +182,6 @@ static int gecko_recvbuffer_safe(void *buffer, u32 size)
 	}
 	return (size - left);
 }
-#endif
 
 #if !defined(NDEBUG) && defined(GECKO_SAFE)
 static int gecko_sendbuffer_safe(const void *buffer, u32 size)
@@ -193,7 +200,7 @@ static int gecko_sendbuffer_safe(const void *buffer, u32 size)
 #ifdef GECKO_LFCR
 				_gecko_sendbyte('\r');
 #endif
-				break;
+//				break;
 			}
 			ptr++;
 			left--;
@@ -202,12 +209,24 @@ static int gecko_sendbuffer_safe(const void *buffer, u32 size)
 	return (size - left);
 }
 #endif
+#endif
 
 void gecko_init(void)
 {
+//#ifndef LOADER
+	set32(HW_EXICTRL, EXICTRL_ENABLE_EXI);
+	clear32(HW_EXICTRL, 0x10);
+
+	clear32(HW_GPIO1OUT, 0x10);
+	udelay(100);
+	set32(HW_RESETS, 0x7ffffcf);
+//#endif
 	write32(EXI0_CSR, 0);
 	write32(EXI1_CSR, 0);
 	write32(EXI2_CSR, 0);
+	write32(EXI0_CSR, 0x2000);
+	write32(EXI0_CSR, 3<<10);
+	write32(EXI1_CSR, 3<<10);
 
 	if (!gecko_isalive())
 		return;
@@ -228,6 +247,16 @@ u8 gecko_enable_console(const u8 enable)
 
 	return gecko_console_enabled;
 }
+
+#if 0
+#ifdef LOADER
+int gecko_puts(const char *s)
+{
+	if(!gecko_found)
+		return -1;
+	return gecko_sendbuffer_safe(s, strlen(s));
+}
+#endif
 
 #ifndef NDEBUG
 int gecko_printf(const char *fmt, ...)
@@ -250,7 +279,176 @@ int gecko_printf(const char *fmt, ...)
 #endif
 }
 #endif
+#else
+#ifdef GECKO_SAFE
+int gecko_putc(const char s)
+{
+	char *ptr = (char *)&s;
+	int tries = 10000; // about 200ms of tries; if we fail, fail gracefully instead of just hanging
 
+	if (!gecko_found)
+		return -1;
+
+	if ((read32(HW_EXICTRL) & EXICTRL_ENABLE_EXI) == 0)
+		return 0;
+
+	if (_gecko_checksend())
+	{
+		if (!_gecko_sendbyte(*ptr))
+			return 0;
+
+		if (*ptr == '\n')
+		{
+#ifdef GECKO_LFCR
+			_gecko_sendbyte('\r');
+#endif
+		}
+	}
+	else
+	{
+		// if gecko is hung, time out and disable further attempts
+		// only affects gecko users without an active terminal
+		if (tries-- == 0)
+		{
+			gecko_found = 0;
+			return 0;
+		}
+	}
+
+	return 1;
+}
+#endif
+
+int gecko_printf(const char *str, ...)
+{
+	va_list arp;
+	u8 c;
+	u8 f;
+	u8 r;
+	u32 val;
+	u32 pos;
+	char s[16];
+	s32 i;
+	s32 w;
+	s32 cc;
+
+	va_start(arp, str);
+
+	for (cc = pos = 0;; )
+	{
+		c = *str++;
+
+		/* End of string */
+		if (c == 0)
+			break;
+
+		/* Non escape cahracter */
+		if (c != '%')
+		{
+			gecko_putc(c);
+			pos++;
+			continue;
+		}
+
+		w = 0;
+		f = 0;
+		c = *str++;
+
+		/* Flag: '0' padding */
+		if (c == '0')
+		{
+			f = 1;
+			c = *str++;
+		}
+
+		/* Precision */
+		while (c >= '0' && c <= '9')
+		{
+			w = w * 10 + (c - '0');
+			c = *str++;
+		}
+
+		/* Type is string */
+		if (c == 's')
+		{
+			char *param = va_arg(arp, char*);
+
+			for (i = 0; param[i]; i++)
+			{
+				gecko_putc(param[i]);
+				pos++;
+			}
+
+			continue;
+		}
+
+		r = 0;
+
+		/* Type is signed decimal */
+		if (c == 'd')
+			r = 10;
+
+		/* Type is unsigned decimal */
+		if (c == 'u')
+			r = 10;
+
+		/* Type is unsigned hexdecimal */
+		if (c == 'X' || c == 'x')
+			r = 16;
+
+		/* Unknown type */
+		if (r == 0)
+			break;
+
+		val = (c == 'd') ? (u32)(long)va_arg(arp, int) : 
+				(u32)va_arg(arp, unsigned int);
+
+		/* Put numeral string */
+		if (c == 'd')
+		{
+			if (val & 0x80000000)
+			{
+				val = 0 - val;
+				f |= 4;
+			}
+		}
+
+ 		i = sizeof(s) - 1;
+		s[i] = 0;
+
+		do
+		{
+			c = (u8)(val % r + '0');
+
+			if (c > '9')
+				c += 7;
+
+			s[--i] = c;
+			val /= r;
+		} while (i && val);
+
+		if (i && (f & 4))
+			s[--i] = '-';
+
+		w = sizeof(s) - 1 - w;
+
+		while (i && i > w)
+			s[--i] = (f & 1) ? '0' : ' ';
+
+		for (; s[i] ; i++)
+		{
+			gecko_putc(s[i]);
+			pos++;
+		}
+	}
+
+	va_end(arp);
+	return pos;
+}
+#endif
+
+#ifndef LOADER
+#if defined(CAN_HAZ_IRQ) && defined(CAN_HAZ_IPC)
 // irq context
 
 #define GECKO_STATE_NONE 0
@@ -381,6 +579,8 @@ cleanup:
 	_gecko_cmd_start_time = 0;
 	_gecko_state = GECKO_STATE_NONE;
 }
+#endif
+#endif
 
 #endif
 

@@ -44,7 +44,7 @@ int	sdhc_host_found(bus_space_tag_t, bus_space_handle_t, int);
 void	sdhc_power(int, void *);
 void	sdhc_shutdown(void);
 int	sdhc_intr(void);
-void	sdhc_init(void);
+int	sdhc_init(void);
 void	sdhc_exit(void);
 void	sdhc_irq(void);
 #ifdef CAN_HAZ_IPC

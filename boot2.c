@@ -51,7 +51,7 @@ static boot2blockmap good_blockmap MEM2_BSS;
 
 #define BLOCKMAP_SIGNATURE 0x26f29a401ee684cfULL
 
-#define BOOT2_START 1
+#define BOOT2_START 3
 #define BOOT2_END 7
 
 static u8 boot2_blocks[BOOT2_END - BOOT2_START + 1];

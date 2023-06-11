@@ -12,6 +12,8 @@ Copyright (C) 2008, 2009	Hector Martin "marcan" <marcan@marcansoft.com>
 
 #include "types.h"
 
+#define UNUSED(x)	((x) = (x))
+
 void debug_output(u8 byte);
 
 #endif

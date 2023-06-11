@@ -17,14 +17,18 @@ Copyright (C) 2008, 2009	Hector Martin "marcan" <marcan@marcansoft.com>
 #include "start.h"
 #include "memory.h"
 #include "crypto.h"
+#ifdef CAN_HAZ_IRQ
 #include "irq.h"
+#endif
+#ifdef CAN_HAZ_IPC
 #include "ipc.h"
+#endif
 #include "gecko.h"
 #include "types.h"
 
 // #define	NAND_DEBUG	1
-#define NAND_SUPPORT_WRITE 1
-#define NAND_SUPPORT_ERASE 1
+//#define NAND_SUPPORT_WRITE 1
+//#define NAND_SUPPORT_ERASE 1
 
 #ifdef NAND_DEBUG
 #	include "gecko.h"
@@ -52,15 +56,22 @@ Copyright (C) 2008, 2009	Hector Martin "marcan" <marcan@marcansoft.com>
 #define NAND_FLAGS_RD	0x2000
 #define NAND_FLAGS_ECC	0x1000
 
+#ifdef CAN_HAZ_IPC
 static ipc_request current_request;
 
 static u8 ipc_data[PAGE_SIZE] MEM2_BSS ALIGNED(32);
 static u8 ipc_ecc[ECC_BUFFER_ALLOC] MEM2_BSS ALIGNED(128); //128 alignment REQUIRED
+#endif
 
+#ifdef CAN_HAZ_IRQ
 static volatile int irq_flag;
+#endif
 static u32 last_page_read = 0;
+#if defined(NAND_SUPPORT_WRITE) || defined(NAND_SUPPORT_WRITE) || defined(CAN_HAZ_IPC)
 static u32 nand_min_page = 0x200; // default to protecting boot1+boot2
+#endif
 
+#if defined(CAN_HAZ_IRQ) && defined(CAN_HAZ_IPC)
 void nand_irq(void)
 {
 	int code, tag, err = 0;
@@ -108,6 +119,7 @@ void nand_irq(void)
 	}
 	irq_flag = 1;
 }
+#endif
 
 inline void __nand_wait(void) {
 	while(read32(NAND_CMD) & NAND_BUSY_MASK);
@@ -158,27 +170,41 @@ int nand_reset(void) {
 }
 
 void nand_get_id(u8 *idbuf) {
+#ifdef CAN_HAZ_IRQ
 	irq_flag = 0;
+#endif
 	__nand_set_address(0,0);
 
 	dc_invalidaterange(idbuf, 0x40);
 
 	__nand_setup_dma(idbuf, (u8 *)-1);
+#ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_CHIPID, 1, NAND_FLAGS_IRQ | NAND_FLAGS_RD, 0x40);
+#else
+	nand_send_command(NAND_CHIPID, 1, NAND_FLAGS_RD, 0x40);
+#endif
 }
 
 void nand_get_status(u8 *status_buf) {
+#ifdef CAN_HAZ_IRQ
 	irq_flag = 0;
+#endif
 	status_buf[0]=0;
 
 	dc_invalidaterange(status_buf, 0x40);
 
 	__nand_setup_dma(status_buf, (u8 *)-1);
+#ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_GETSTATUS, 0, NAND_FLAGS_IRQ | NAND_FLAGS_RD, 0x40);
+#else
+	nand_send_command(NAND_GETSTATUS, 0, NAND_FLAGS_RD, 0x40);
+#endif
 }
 
 void nand_read_page(u32 pageno, void *data, void *ecc) {
+#ifdef CAN_HAZ_IRQ
 	irq_flag = 0;
+#endif
 	last_page_read = pageno;  // needed for error reporting
 	__nand_set_address(0, pageno);
 	nand_send_command(NAND_READ_PRE, 0x1f, 0, 0);
@@ -188,9 +214,14 @@ void nand_read_page(u32 pageno, void *data, void *ecc) {
 
 	__nand_wait();
 	__nand_setup_dma(data, ecc);
+#ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_READ_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT | NAND_FLAGS_RD | NAND_FLAGS_ECC, 0x840);
+#else
+	nand_send_command(NAND_READ_POST, 0, NAND_FLAGS_WAIT | NAND_FLAGS_RD, 0x800);
+#endif
 }
 
+#ifdef CAN_HAZ_IRQ
 void nand_wait(void) {
 // power-saving IRQ wait
 	while(!irq_flag) {
@@ -200,10 +231,13 @@ void nand_wait(void) {
 		irq_restore(cookie);
 	}
 }
+#endif
 
 #ifdef NAND_SUPPORT_WRITE
 void nand_write_page(u32 pageno, void *data, void *ecc) {
+#ifdef CAN_HAZ_IRQ
 	irq_flag = 0;
+#endif
 	NAND_debug("nand_write_page(%u, %p, %p)\n", pageno, data, ecc);
 
 // this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
@@ -218,13 +252,18 @@ void nand_write_page(u32 pageno, void *data, void *ecc) {
 	__nand_setup_dma(data, ecc);
 	nand_send_command(NAND_WRITE_PRE, 0x1f, NAND_FLAGS_WR, 0x840);
 	__nand_wait();
+#ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_WRITE_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT, 0);
+#else
+#endif
 }
 #endif
 
 #ifdef NAND_SUPPORT_ERASE
 void nand_erase_block(u32 pageno) {
+#ifdef CAN_HAZ_IRQ
 	irq_flag = 0;
+#endif
 	NAND_debug("nand_erase_block(%d)\n", pageno);
 
 // this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
@@ -235,18 +274,27 @@ void nand_erase_block(u32 pageno) {
 	__nand_set_address(0, pageno);
 	nand_send_command(NAND_ERASE_PRE, 0x1c, 0, 0);
 	__nand_wait();
+#ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_ERASE_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT, 0);
+#else
+	nand_send_command(NAND_ERASE_POST, 0, NAND_FLAGS_WAIT, 0);
+#endif
 	NAND_debug("nand_erase_block(%d) done\n", pageno);
 }
 #endif
 
 void nand_initialize(void)
 {
+#ifdef CAN_HAZ_IPC
 	current_request.code = 0;
+#endif
 	nand_reset();
+#ifdef CAN_HAZ_IRQ
 	irq_enable(IRQ_NAND);
+#endif
 }
 
+#if defined(CAN_HAZ_IRQ) && defined(CAN_HAZ_IPC)
 int nand_correct(u32 pageno, void *data, void *ecc)
 {
 	(void) pageno;
@@ -291,7 +339,9 @@ int nand_correct(u32 pageno, void *data, void *ecc)
 		return NAND_ECC_CORRECTED;
 	return NAND_ECC_OK;
 }
+#endif
 
+#ifdef CAN_HAZ_IPC
 void nand_ipc(volatile ipc_request *req)
 {
 	u32 new_min_page = 0x200;
@@ -359,4 +409,5 @@ void nand_ipc(volatile ipc_request *req)
 					req->req);
 	}
 }
+#endif
 

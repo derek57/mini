@@ -264,11 +264,10 @@ void mem_setswap(int enable)
 		write32(HW_MEMMIRR, d | 0x20);
 }
 
-#ifndef LOADER
 u32 dma_addr(void *p)
 {
 	u32 addr = (u32)p;
-
+#ifndef LOADER
 	switch(addr>>20) {
 		case 0xfff:
 		case 0x0d4:
@@ -280,10 +279,12 @@ u32 dma_addr(void *p)
 			addr |= 0x0d400000;
 			break;
 	}
+#endif
 	//gecko_printf("DMA to %p: address %08x\n", p, addr);
 	return addr;
 }
 
+#ifndef LOADER
 #define SECTION				0x012
 
 #define	NONBUFFERABLE		0x000

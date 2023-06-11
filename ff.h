@@ -38,7 +38,7 @@
 /  performance and code efficiency. */
 
 
-#define _FS_READONLY	1
+#define _FS_READONLY	0
 /* Setting _FS_READONLY to 1 defines read only configuration. This removes
 /  writing functions, f_write, f_sync, f_unlink, f_mkdir, f_chmod, f_rename,
 /  f_truncate and useless f_getfree. */
@@ -408,7 +408,11 @@ char* f_gets (char*, int, FIL*);					/* Get a string from the file */
 
 /* Real time clock */
 #if !_FS_READONLY
-DWORD get_fattime (void);	/* 31-25: Year(0-127 org.1980), 24-21: Month(1-12), 20-16: Day(1-31) */
+#define _NORTC_MON	1
+#define _NORTC_MDAY	1
+#define _NORTC_YEAR	1980
+#define get_fattime()	((DWORD)(_NORTC_YEAR - 1980) << 25 | (DWORD)_NORTC_MON << 21 | (DWORD)_NORTC_MDAY << 16)
+//DWORD get_fattime (void);	/* 31-25: Year(0-127 org.1980), 24-21: Month(1-12), 20-16: Day(1-31) */
 							/* 15-11: Hour(0-23), 10-5: Minute(0-59), 4-0: Second(0-29 *2) */
 #endif
 

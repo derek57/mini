@@ -24,6 +24,7 @@ u8 gecko_enable_console(const u8 enable);
 #ifdef NDEBUG
 #define gecko_printf(...) do { } while(0)
 #else
+int gecko_puts(const char *s);
 int gecko_printf(const char *fmt, ...) __attribute__((format (printf, 1, 2)));
 #endif
 

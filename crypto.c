@@ -13,8 +13,12 @@ Copyright (C) 2008, 2009	Sven Peter <svenpeter@gmail.com>
 #include "hollywood.h"
 #include "utils.h"
 #include "memory.h"
+#ifdef CAN_HAZ_IRQ
 #include "irq.h"
+#endif
+#ifdef CAN_HAZ_IPC
 #include "ipc.h"
+#endif
 #include "gecko.h"
 #include "string.h"
 #include "seeprom.h"
@@ -46,9 +50,12 @@ void crypto_initialize(void)
 	crypto_read_seeprom();
 	write32(AES_CMD, 0);
 	while (read32(AES_CMD) != 0);
+#ifdef CAN_HAZ_IRQ
 	irq_enable(IRQ_AES);
+#endif
 }
 
+#ifdef CAN_HAZ_IPC
 void crypto_ipc(volatile ipc_request *req)
 {
 	switch (req->req) {
@@ -66,20 +73,24 @@ void crypto_ipc(volatile ipc_request *req)
 	}
 	ipc_post(req->code, req->tag, 0);
 }
+#endif
 
-
+#ifdef CAN_HAZ_IRQ
 static int _aes_irq = 0;
 
 void aes_irq(void)
 {
 	_aes_irq = 1;
 }
+#endif
 
 static inline void aes_command(u16 cmd, u8 iv_keep, u32 blocks)
 {
 	if (blocks != 0)
 		blocks--;
+#ifdef CAN_HAZ_IRQ
 	_aes_irq = 0;
+#endif
 	write32(AES_CMD, (cmd << 16) | (iv_keep ? 0x1000 : 0) | (blocks&0x7f));
 	while (read32(AES_CMD) & 0x80000000);
 }
@@ -142,6 +153,7 @@ void aes_decrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
 
 }
 
+#ifdef CAN_HAZ_IPC
 void aes_ipc(volatile ipc_request *req)
 {
 	switch (req->req) {
@@ -164,4 +176,5 @@ void aes_ipc(volatile ipc_request *req)
 	}
 	ipc_post(req->code, req->tag, 0);
 }
+#endif
 

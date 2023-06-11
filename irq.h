@@ -70,6 +70,8 @@ void irq_set_alarm(u32 ms, u8 enable);
 #endif
 
 #else
+
+#ifndef _LANGUAGE_ASSEMBLY
 // stub functions allow us to avoid sprinkling other code with ifdefs
 static inline u32 irq_kill(void) {
 	return 0;
@@ -78,6 +80,7 @@ static inline u32 irq_kill(void) {
 static inline void irq_restore(u32 cookie) {
 	(void)cookie;
 }
+#endif
 #endif
 
 #endif

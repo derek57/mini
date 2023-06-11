@@ -26,7 +26,6 @@ Copyright (C) 2008, 2009	Hector Martin "marcan" <marcan@marcansoft.com>
 .extern v_instr_abrt
 .extern v_data_abrt
 .extern v_reserved
-.extern v_irq
 .extern v_fiq
 
 .section .init
