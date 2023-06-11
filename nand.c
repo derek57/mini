@@ -27,8 +27,10 @@ Copyright (C) 2008, 2009	Hector Martin "marcan" <marcan@marcansoft.com>
 #include "types.h"
 
 // #define	NAND_DEBUG	1
-//#define NAND_SUPPORT_WRITE 1
-//#define NAND_SUPPORT_ERASE 1
+#ifndef LOADER
+#define NAND_SUPPORT_WRITE 1
+#define NAND_SUPPORT_ERASE 1
+#endif
 
 #ifdef NAND_DEBUG
 #	include "gecko.h"
@@ -255,6 +257,7 @@ void nand_write_page(u32 pageno, void *data, void *ecc) {
 #ifdef CAN_HAZ_IRQ
 	nand_send_command(NAND_WRITE_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT, 0);
 #else
+	nand_send_command(NAND_WRITE_POST, 0, NAND_FLAGS_WAIT, 0);
 #endif
 }
 #endif
